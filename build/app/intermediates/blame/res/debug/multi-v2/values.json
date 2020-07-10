@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "/home/iamsubhaa/college project/veggy/build/app/intermediates/incremental/mergeDebugResources/merged.dir/values/values.xml",
+            "outputFile": "/home/iamsubhaa/college_projects/veggy/build/app/intermediates/incremental/mergeDebugResources/merged.dir/values/values.xml",
             "map": [
                 {
-                    "source": "/home/iamsubhaa/college project/veggy/android/app/src/main/res/values/styles.xml",
+                    "source": "/home/iamsubhaa/college_projects/veggy/android/app/src/main/res/values/styles.xml",
                     "from": {
                         "startLines": "3,14",
                         "startColumns": "4,4",

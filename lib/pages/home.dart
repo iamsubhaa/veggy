@@ -1,5 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:veggy/models/index.dart';
+import 'package:veggy/providers/favourite.dart';
+import 'package:veggy/providers/index.dart';
+import 'package:veggy/utills/index.dart';
 import '../widgets/index.dart';
 
 class MyHomePage extends StatefulWidget {
@@ -13,6 +20,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
+  String searchKeyword = "";
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -107,6 +115,11 @@ class _MyHomePageState extends State<MyHomePage> {
                                 child: Container(
                                   height: 35,
                                   child: TextField(
+                                    onChanged: (value) {
+                                      setState(() {
+                                        searchKeyword = value;
+                                      });
+                                    },
                                     textInputAction: TextInputAction.search,
                                     style: TextStyle(
                                         fontSize: 20, color: Colors.green),
@@ -139,7 +152,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                       top: 0,
                                       left: 14,
                                       child: Text(
-                                        '999+',
+                                        Provider.of<Cart>(context).cart.length>0?Provider.of<Cart>(context).cart.length.toString():"",
                                         style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color: Colors.green),
@@ -177,7 +190,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                 top: 1,
                                 left: 19,
                                 child: Text(
-                                  '999+',
+                                  Provider.of<Cart>(context).cart.length>0?Provider.of<Cart>(context).cart.length.toString():"",
                                   style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: Colors.green),
@@ -201,7 +214,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     child: Padding(
                       padding: const EdgeInsets.only(
                           left: 20.0, right: 20.0, bottom: 10.0),
-                      child: body(_selectedIndex),
+                      child: body(_selectedIndex, search: searchKeyword),
                     ),
                   ),
                 ]))
@@ -223,8 +236,20 @@ String title(int index) {
     return "Your Profile";
 }
 
-Widget body(int index) {
-  if (index == 3)
+Widget body(int index, {String search}) {
+  if (index == 1)
+    return ListView(children: [
+      ProductTile(
+        searchKeyword: search,
+      )
+    ]);
+  else if (index == 2)
+    return ListView(children: [
+      ProductTile(
+        isFavlist: true,
+      )
+    ]);
+  else if (index == 3)
     return Column(children: [
       CartPlacOrderRow(),
       Expanded(child: ProductTileLandscape())
@@ -235,46 +260,130 @@ Widget body(int index) {
     return ListView(children: [ProductTile()]);
 }
 
-class ProductTileLandscape extends StatelessWidget {
+class ProductTileLandscape extends StatefulWidget {
+  @override
+  _ProductTileLandscapeState createState() => _ProductTileLandscapeState();
+}
+
+class _ProductTileLandscapeState extends State<ProductTileLandscape> {
+  @override
+  void initState() {
+    Provider.of<Cart>(context, listen: false).getCart();
+    super.initState();
+  }
+
+  List<ProductCardLandScape> makeList(List<CartProduct> e) {
+    List<ProductCardLandScape> temp = [];
+    e.forEach((element) async {
+      int available = element.product.stock - int.parse(element.qty);
+      if (available >= 0) {
+         temp.add(ProductCardLandScape(cartProduct: element));
+      } else {
+        temp.add(ProductCardLandScape(
+            cartProduct: CartProduct(
+                id: element.id,
+                qty: element.product.stock == 0 ? "0" : element.product.stock.toString(),
+                product: element.product)));
+        Map body = {
+          'qty': element.product.stock == 0 ? 0 : element.product.stock
+        };
+        final response =
+            await Api().putWithToken('/carts/${element.id}/', jsonEncode(body));
+      }
+    });
+    return temp;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListView(children: [
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-      ProductCardLandScape(),
-    ]);
+    return ListView(children: makeList(Provider.of<Cart>(context).cart)
+
+        // [
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        //   ProductCardLandScape(),
+        // ]
+        );
   }
 }
 
-class ProductTile extends StatelessWidget {
+class ProductTile extends StatefulWidget {
+  ProductTile({this.isFavlist = false, this.searchKeyword = ""});
+  bool isFavlist;
+  String searchKeyword;
+  @override
+  _ProductTileState createState() => _ProductTileState();
+}
+
+class _ProductTileState extends State<ProductTile> {
+  List<Product> _product = [];
+  bool _isFetching = true;
+  fetchProducts() async {
+    try {
+      final response = await Api().getWithToken('/products');
+      _product = response.map((val) => Product.fromJSON(val)).toList() ?? [];
+      print(_product);
+    } catch (e) {
+      print('Home product fetch err $e');
+    }
+    setState(() {
+      _isFetching = false;
+    });
+    print('finally');
+  }
+
+  @override
+  void initState() {
+    fetchProducts();
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Wrap(children: [
-      Container(width: 155, child: ProductCard()),
-      Container(width: 155, child: ProductCard()),
-      Container(width: 155, child: ProductCard()),
-      Container(width: 155, child: ProductCard()),
-      Container(width: 155, child: ProductCard()),
-      Container(width: 155, child: ProductCard()),
-      Container(width: 155, child: ProductCard()),
-      Container(width: 155, child: ProductCard()),
-    ]);
+    return Wrap(
+        children: widget.isFavlist
+            ? _product
+                .where((e) => Provider.of<Favouite>(context).fav.contains(e.id))
+                .toList()
+                .map((e) => Container(
+                    width: 155,
+                    child: ProductCard(
+                      product: e,
+                    )))
+                .toList()
+            : widget.searchKeyword != ""
+                ? _product
+                    .where((e) => e.name.contains(widget.searchKeyword))
+                    .toList()
+                    .map((e) => Container(
+                        width: 155,
+                        child: ProductCard(
+                          product: e,
+                        )))
+                    .toList()
+                : _product
+                    .map((e) => Container(
+                        width: 155,
+                        child: ProductCard(
+                          product: e,
+                        )))
+                    .toList());
   }
 }

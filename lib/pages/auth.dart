@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:pin_entry_text_field/pin_entry_text_field.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:veggy/providers/favourite.dart';
+import 'package:veggy/providers/index.dart';
 import 'package:veggy/utills/index.dart';
 import 'package:veggy/widgets/index.dart';
 
@@ -16,9 +19,11 @@ class _AuthPageState extends State<AuthPage> {
   TextEditingController _emailController = new TextEditingController();
   TextEditingController _passwordController = new TextEditingController();
   TextEditingController _nameController = new TextEditingController();
+  TextEditingController _addressController = new TextEditingController();
   String _email;
   String _password;
   String _displayName;
+  String _address;
   bool _obsecure = false;
   gender _gender = gender.Male;
   String _pin = "";
@@ -154,19 +159,63 @@ class _AuthPageState extends State<AuthPage> {
     }
 
     //login and register fuctions
-    void isLoggedIn() async {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setBool("loggedIn",true);
+    void isLoggedIn(indentifier, password) async {
+      Map<String, dynamic> body = {
+        "identifier": indentifier,
+        "password": password,
+      };
+      try {
+        final response = await Api().login('/auth/local', body);
+        try {
+          String msg = response['message'][0]['messages'][0]['message'];
+          showSnackBar(context, msg, scaffoldkey: _scaffoldKey);
+        } catch (e) {
+          print('login err $e');
+          String id = response['user']['id'].toString();
+          String email = response['user']['email'];
+          String username = response['user']['username'];
+          String gender = response['user']['gender']; 
+          String address = response['user']['address'];
+          Provider.of<LoginApp>(context,listen: false).setUser(id, username, email, gender, address);
+          SharedPreferences prefs = await SharedPreferences.getInstance();
+          await prefs.setString('jwt', response['jwt']);
+          await prefs.setString('userId', id);
+          await prefs.setString('email', email);
+          await prefs.setString('username', username);
+          await prefs.setString('address', address);
+          await prefs.setString('gender', gender);
+          await prefs.setBool("loggedIn", true);
+          Provider.of<Favouite>(context,listen: false).getFav(id);
+          showSnackBar(context, 'Login successfull', scaffoldkey: _scaffoldKey);
+          Navigator.of(context)
+              .pushNamedAndRemoveUntil(RouterName.MAIN_APP, (route) => false);
+        }
+      } catch (e) {
+        print('login err $e');
+      }
     }
 
     void _loginUser() {
       _email = _emailController.text;
       _password = _passwordController.text;
-      _emailController.clear();
-      _passwordController.clear();
-      isLoggedIn();
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil(RouterName.MAIN_APP, (route) => false);
+      _scaffoldKey.currentState.hideCurrentSnackBar();
+      if(_email==""){
+        showSnackBar(context, "Can't blank Email", scaffoldkey: _scaffoldKey);
+        return;
+      }
+      if(!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(_email)){
+        showSnackBar(context, "Enter valid Email", scaffoldkey: _scaffoldKey);
+        return;
+      }
+      if(_password==""){
+        showSnackBar(context, "Can't blank Password", scaffoldkey: _scaffoldKey);
+        return;
+      }
+      // _emailController.clear();
+      // _passwordController.clear();
+      isLoggedIn(_email, _password);
+      // Navigator.of(context)
+      //     .pushNamedAndRemoveUntil(RouterName.MAIN_APP, (route) => false);
     }
 
     void _loginSheet() {
@@ -429,16 +478,66 @@ class _AuthPageState extends State<AuthPage> {
       });
     }
 
+    void isRegistered() async {
+      Map<String, dynamic> body = {
+        "username": _displayName,
+        "email": _email,
+        "password": _password,
+        "gender": _gender.index == 0 ? 'Male' : 'Female',
+        "address": _address,
+      };
+      try {
+        final response = await Api().post('/auth/local/register', body);
+        try {
+          String msg = response['message'][0]['messages'][0]['message'];
+          showSnackBar(context, msg, scaffoldkey: _scaffoldKey);
+        } catch (e) {
+          Navigator.of(context).pop();
+          _loginSheet();
+          showSnackBar(context, 'Registered. Please confirm email before login', scaffoldkey: _scaffoldKey);
+        }
+      } catch (e) {
+        print('register err $e');
+      }
+    }
+
     void _registerUser() {
       _email = _emailController.text;
       _password = _passwordController.text;
       _displayName = _nameController.text;
-      _emailController.clear();
-      _passwordController.clear();
-      _nameController.clear();
-      Navigator.of(context).pop();
+      _address = _addressController.text;
+      // _emailController.clear();
+      // _passwordController.clear();
+      // _nameController.clear();
+      _scaffoldKey.currentState.hideCurrentSnackBar();
+      if(_displayName==""){
+        showSnackBar(context, "Can't blank Name", scaffoldkey: _scaffoldKey);
+        return;
+      }
+      if(_email==""){
+        showSnackBar(context, "Can't blank Email", scaffoldkey: _scaffoldKey);
+        return;
+      }
+      if(!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(_email)){
+        showSnackBar(context, "Enter valid Email", scaffoldkey: _scaffoldKey);
+        return;
+      }
+      if(_address==""){
+        showSnackBar(context, "Can't blank Address", scaffoldkey: _scaffoldKey);
+        return;
+      }
+      if(_password==""){
+        showSnackBar(context, "Can't blank Password", scaffoldkey: _scaffoldKey);
+        return;
+      }
+      if(_password.length<8){
+        showSnackBar(context, "Password more than 7 digit", scaffoldkey: _scaffoldKey);
+        return;
+      }
+      isRegistered();
+      // Navigator.of(context).pop();
       // _loginSheet();
-      _otpSheet();
+      // _otpSheet();
     }
 
     void _registerSheet() {
@@ -591,6 +690,13 @@ class _AuthPageState extends State<AuthPage> {
                                 ),
                                 child: _input(Icon(Icons.email), "EMAIL",
                                     _emailController, false),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: 20,
+                                ),
+                                child: _input(Icon(Icons.home), "DELIVERY ADDRESS",
+                                    _addressController, false),
                               ),
                               Padding(
                                 padding: EdgeInsets.only(bottom: 20),

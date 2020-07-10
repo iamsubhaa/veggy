@@ -1,4 +1,4 @@
-#Thu Jul 09 16:31:10 IST 2020
-base.0=/home/iamsubhaa/college project/veggy/build/app/intermediates/dex/debug/mergeDexDebug/out/classes.dex
+#Sat Jul 11 01:59:38 IST 2020
+base.0=/home/iamsubhaa/college_projects/veggy/build/app/intermediates/dex/debug/mergeDexDebug/out/classes.dex
 path.0=classes.dex
 renamed.0=classes.dex
